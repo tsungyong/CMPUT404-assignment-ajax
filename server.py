@@ -22,8 +22,9 @@
 
 
 import flask
-from flask import Flask, request
+from flask import Flask, request, redirect
 import json
+import collections
 app = Flask(__name__)
 app.debug = True
 
@@ -71,30 +72,59 @@ def flask_post_json():
     else:
         return json.loads(request.form.keys()[0])
 
+# From http://stackoverflow.com/questions/1254454/fastest-way-to-convert-a-dicts-keys-values-from-unicode-to-str
+def convert(data):
+    if isinstance(data, basestring):
+        return str(data)
+    elif isinstance(data, collections.Mapping):
+        return dict(map(convert, data.iteritems()))
+    elif isinstance(data, collections.Iterable):
+        return type(data)(map(convert, data))
+    else:
+        return data
+
 @app.route("/")
 def hello():
     '''Return something coherent here.. perhaps redirect to /static/index.html '''
-    return None
+    return redirect("/static/index.html", code=302)
 
 @app.route("/entity/<entity>", methods=['POST','PUT'])
 def update(entity):
     '''update the entities via this interface'''
-    return None
+
+    if request.method == "POST" or request.method == "PUT":
+        data = flask_post_json()
+        if data != {}:
+            myWorld.set(entity, data)
+            return str(convert(data)).replace("'", '"')
+
+    return "{}"
 
 @app.route("/world", methods=['POST','GET'])    
 def world():
     '''you should probably return the world here'''
-    return None
+    if request.method == "POST":
+        data = flask_post_json()
+
+    if myWorld.world() != {}:
+        return str(convert(myWorld.world())).replace("'", '"')
+
+    return "{}"
 
 @app.route("/entity/<entity>")    
 def get_entity(entity):
     '''This is the GET version of the entity interface, return a representation of the entity'''
-    return None
+    jsonEntity = myWorld.world().get(entity)
+    if jsonEntity is not None:
+        return str(convert(jsonEntity)).replace("'", '"')
+
+    return "{}"
 
 @app.route("/clear", methods=['POST','GET'])
 def clear():
     '''Clear the world out!'''
-    return None
+    myWorld.world().clear()
+    return "{}"
 
 if __name__ == "__main__":
     app.run()

@@ -31,15 +31,14 @@ var context = canvas.getContext("2d");
 var W = canvas.width  = window.innerWidth-6;
 var H = canvas.height = window.innerHeight-50;
 
-
 function sendJSONXMLHTTPRequest(url, objects, callback) {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function () {
         if (xhr.readyState==4) {
             try {
                 if (xhr.status==200) {
-                    //XXX: parse some JSON from the request!
-                    //XXX: Pass the data to the callback!
+                    var jsonResponse = JSON.parse(xhr.responseText);
+                    callback(jsonResponse);
                 }
             } 
             catch(e) {
@@ -47,13 +46,45 @@ function sendJSONXMLHTTPRequest(url, objects, callback) {
             }
         }
     };
-    //XXX: POST to a URL
-    //XXX: set the mimetype and the accept headers!
-    // Remember to use application/json !
+
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-type", "application/json");
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.send(JSON.stringify(objects));
 }
 
 
 world = {};
+
+function updateWorld(jsonWorld) {
+    // Check which entities (if any) need to be updated
+    for (var key in jsonWorld) {
+        if (world.hasOwnProperty(key)) {
+            var same = true;
+            for (var entityProperty in world[key]) {
+                // The client world and server world should both have the same
+                // entity properties
+                if (entityProperty !== "radius") {
+                    if (world[key][entityProperty] !== jsonWorld[key][entityProperty]) {
+                        same = false;
+                        break;
+                    }
+                }
+            }
+
+            if (same === false) {
+                addEntity(key, jsonWorld[key], false);
+            }
+        }
+        else {
+            addEntity(key, jsonWorld[key], false);
+        }
+    }
+}
+
+function nullCallback(dummy) {
+
+}
 
 //XXX: TODO Make this prettier!
 function drawCircle(context,entity) {
@@ -134,10 +165,13 @@ function getPosition(e) {
 }
 
 
-function addEntity(entity, data) {
+function addEntity(entity, data, sendToServer) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
-    //XXX: Send a XHTML Request that updates the entity you just  modified!
+
+    if (sendToServer) {
+        sendJSONXMLHTTPRequest("/entity/" + entity, data, nullCallback);
+    }
 
 }
 
@@ -145,7 +179,7 @@ var counter = 0;
 function addEntityWithoutName(data) {
     //var name = "X"+Math.floor((Math.random()*100)+1);
     var name = "X"+(counter++)%100;
-    addEntity(name,data);
+    addEntity(name,data,true);
 }
 
 // canvas + mouse/touch is complicated 
@@ -261,7 +295,7 @@ mouse.mousedraggers.push(function(x,y,clicked,e) {
 
 
 function update() {
-    //XXX: TODO Get the world from the webservice using a XMLHTTPRequest
+    sendJSONXMLHTTPRequest("/world", {}, updateWorld);
     drawFrame();
 }
 
